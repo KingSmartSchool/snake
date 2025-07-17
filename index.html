@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>緞帶糖果遊戲</title>
+    <title>緞帶棒棒糖遊戲</title>
     <style>
         body {
             display: flex;
@@ -53,23 +53,43 @@
             z-index: 3;
         }
         
-        .candy {
+        .lollipop {
+            position: absolute;
+            z-index: 1;
+        }
+        
+        .lollipop-head {
             position: absolute;
             width: 18px;
             height: 18px;
-            background: radial-gradient(circle at 30% 30%, #fff, #ffcc00);
             border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, var(--lollipop-color));
             box-shadow: 
-                0 0 5px #ffcc00,
-                0 0 10px #ff9900,
+                0 0 5px var(--lollipop-color),
+                0 0 10px var(--lollipop-shadow),
                 inset 0 0 5px #fff;
-            z-index: 1;
             animation: pulse 1.5s infinite alternate;
+        }
+        
+        .lollipop-stick {
+            position: absolute;
+            width: 2px;
+            height: 10px;
+            background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
         }
         
         @keyframes pulse {
             0% { transform: scale(1); }
             100% { transform: scale(1.2); }
+        }
+        
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         #score {
@@ -123,7 +143,7 @@
     </style>
 </head>
 <body>
-    <h1>緞帶糖果遊戲</h1>
+    <h1>緞帶棒棒糖遊戲</h1>
     <div id="game-container">
         <div id="game-board"></div>
         <div id="game-over">
@@ -157,6 +177,14 @@
         let isPaused = false;
         let gameStarted = false;
         
+        // 棒棒糖顏色選項
+        const lollipopColors = [
+            { color: '#ff6b88', shadow: '#ff0066' }, // 粉紅色
+            { color: '#ffcc00', shadow: '#ff9900' }, // 黃色
+            { color: '#66ccff', shadow: '#3399ff' }, // 藍色
+            { color: '#99ff99', shadow: '#66cc66' }  // 綠色
+        ];
+        
         // 初始化遊戲
         function initGame() {
             // 清除現有的蛇和食物
@@ -184,10 +212,10 @@
             gameOverScreen.style.display = 'none';
         }
         
-        // 創建食物
+        // 創建食物 (棒棒糖)
         function createFood() {
             // 移除現有的食物
-            const existingFood = document.querySelector('.candy');
+            const existingFood = document.querySelector('.lollipop');
             if (existingFood) existingFood.remove();
             
             // 隨機位置 (確保不與蛇重疊)
@@ -197,13 +225,30 @@
                 foodY = Math.floor(Math.random() * (boardHeight / gridSize)) * gridSize;
             } while (isPositionOccupied(foodX, foodY));
             
-            const candy = document.createElement('div');
-            candy.className = 'candy';
-            candy.style.left = `${foodX}px`;
-            candy.style.top = `${foodY}px`;
-            gameBoard.appendChild(candy);
+            // 隨機選擇棒棒糖顏色
+            const colorOption = lollipopColors[Math.floor(Math.random() * lollipopColors.length)];
             
-            food = { x: foodX, y: foodY, element: candy };
+            // 創建棒棒糖
+            const lollipop = document.createElement('div');
+            lollipop.className = 'lollipop';
+            lollipop.style.left = `${foodX}px`;
+            lollipop.style.top = `${foodY}px`;
+            
+            // 棒棒糖頭部
+            const head = document.createElement('div');
+            head.className = 'lollipop-head';
+            head.style.setProperty('--lollipop-color', colorOption.color);
+            head.style.setProperty('--lollipop-shadow', colorOption.shadow);
+            
+            // 棒棒糖棒
+            const stick = document.createElement('div');
+            stick.className = 'lollipop-stick';
+            
+            lollipop.appendChild(head);
+            lollipop.appendChild(stick);
+            gameBoard.appendChild(lollipop);
+            
+            food = { x: foodX, y: foodY, element: lollipop, color: colorOption.color };
         }
         
         // 檢查位置是否被佔用
@@ -269,6 +314,9 @@
                 score++;
                 scoreDisplay.textContent = `得分: ${score}`;
                 
+                // 根據棒棒糖顏色改變蛇頭顏色
+                newHead.style.background = `linear-gradient(45deg, ${food.color}, ${darkenColor(food.color, 20)})`;
+                
                 // 創建新食物
                 createFood();
             } else {
@@ -276,6 +324,22 @@
                 const tail = snake.pop();
                 gameBoard.removeChild(tail.element);
             }
+        }
+        
+        // 顏色變暗函數
+        function darkenColor(color, percent) {
+            const num = parseInt(color.replace("#", ""), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = (num >> 16) - amt;
+            const G = (num >> 8 & 0x00FF) - amt;
+            const B = (num & 0x0000FF) - amt;
+            
+            return "#" + (
+                0x1000000 +
+                (R < 0 ? 0 : R) * 0x10000 +
+                (G < 0 ? 0 : G) * 0x100 +
+                (B < 0 ? 0 : B)
+            ).toString(16).slice(1);
         }
         
         // 遊戲結束
