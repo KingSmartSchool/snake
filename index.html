@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>緞帶糖果遊戲</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f8ff;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        h1 {
+            color: #ff6b88;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            border: 3px solid #ff9eb5;
+            border-radius: 10px;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(255, 105, 136, 0.3);
+            overflow: hidden;
+        }
+        
+        #game-board {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .ribbon-segment {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #ff9eb5, #ff6b88, #ff4785);
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(45deg);
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+            z-index: 2;
+        }
+        
+        .ribbon-head {
+            background: linear-gradient(45deg, #ff4785, #ff0066);
+            width: 24px;
+            height: 24px;
+            z-index: 3;
+        }
+        
+        .candy {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: radial-gradient(circle at 30% 30%, #fff, #ffcc00);
+            border-radius: 50%;
+            box-shadow: 
+                0 0 5px #ffcc00,
+                0 0 10px #ff9900,
+                inset 0 0 5px #fff;
+            z-index: 1;
+            animation: pulse 1.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.2); }
+        }
+        
+        #score {
+            margin-top: 15px;
+            font-size: 20px;
+            color: #ff6b88;
+        }
+        
+        #controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 15px;
+            background: linear-gradient(to bottom, #ff9eb5, #ff6b88);
+            border: none;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 192, 203, 0.8);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        #game-over h2 {
+            color: #ff0066;
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <h1>緞帶糖果遊戲</h1>
+    <div id="game-container">
+        <div id="game-board"></div>
+        <div id="game-over">
+            <h2>遊戲結束!</h2>
+            <button id="restart-btn">再玩一次</button>
+        </div>
+    </div>
+    <div id="score">得分: 0</div>
+    <div id="controls">
+        <button id="start-btn">開始遊戲</button>
+        <button id="pause-btn">暫停</button>
+    </div>
+
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score');
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const gameOverScreen = document.getElementById('game-over');
+        
+        const gridSize = 20;
+        const boardWidth = 400;
+        const boardHeight = 400;
+        let snake = [];
+        let food = {};
+        let direction = 'right';
+        let nextDirection = 'right';
+        let gameInterval;
+        let score = 0;
+        let isPaused = false;
+        let gameStarted = false;
+        
+        // 初始化遊戲
+        function initGame() {
+            // 清除現有的蛇和食物
+            gameBoard.innerHTML = '';
+            snake = [];
+            score = 0;
+            scoreDisplay.textContent = `得分: ${score}`;
+            direction = 'right';
+            nextDirection = 'right';
+            
+            // 創建初始蛇 (3節)
+            for (let i = 2; i >= 0; i--) {
+                const segment = document.createElement('div');
+                segment.className = i === 0 ? 'ribbon-segment ribbon-head' : 'ribbon-segment';
+                segment.style.left = `${i * gridSize}px`;
+                segment.style.top = '0px';
+                gameBoard.appendChild(segment);
+                snake.push({ x: i * gridSize, y: 0, element: segment });
+            }
+            
+            // 創建食物
+            createFood();
+            
+            // 隱藏遊戲結束畫面
+            gameOverScreen.style.display = 'none';
+        }
+        
+        // 創建食物
+        function createFood() {
+            // 移除現有的食物
+            const existingFood = document.querySelector('.candy');
+            if (existingFood) existingFood.remove();
+            
+            // 隨機位置 (確保不與蛇重疊)
+            let foodX, foodY;
+            do {
+                foodX = Math.floor(Math.random() * (boardWidth / gridSize)) * gridSize;
+                foodY = Math.floor(Math.random() * (boardHeight / gridSize)) * gridSize;
+            } while (isPositionOccupied(foodX, foodY));
+            
+            const candy = document.createElement('div');
+            candy.className = 'candy';
+            candy.style.left = `${foodX}px`;
+            candy.style.top = `${foodY}px`;
+            gameBoard.appendChild(candy);
+            
+            food = { x: foodX, y: foodY, element: candy };
+        }
+        
+        // 檢查位置是否被佔用
+        function isPositionOccupied(x, y) {
+            return snake.some(segment => segment.x === x && segment.y === y);
+        }
+        
+        // 移動蛇
+        function moveSnake() {
+            if (isPaused || !gameStarted) return;
+            
+            // 更新方向
+            direction = nextDirection;
+            
+            // 獲取蛇頭位置
+            const head = { ...snake[0] };
+            
+            // 根據方向計算新頭部位置
+            switch (direction) {
+                case 'up':
+                    head.y -= gridSize;
+                    break;
+                case 'down':
+                    head.y += gridSize;
+                    break;
+                case 'left':
+                    head.x -= gridSize;
+                    break;
+                case 'right':
+                    head.x += gridSize;
+                    break;
+            }
+            
+            // 檢查是否撞牆
+            if (head.x < 0 || head.x >= boardWidth || head.y < 0 || head.y >= boardHeight) {
+                gameOver();
+                return;
+            }
+            
+            // 檢查是否撞到自己
+            if (isPositionOccupied(head.x, head.y)) {
+                gameOver();
+                return;
+            }
+            
+            // 創建新頭部
+            const newHead = document.createElement('div');
+            newHead.className = 'ribbon-segment ribbon-head';
+            newHead.style.left = `${head.x}px`;
+            newHead.style.top = `${head.y}px`;
+            gameBoard.appendChild(newHead);
+            
+            // 將舊頭部改為普通段
+            snake[0].element.classList.remove('ribbon-head');
+            snake[0].element.classList.add('ribbon-segment');
+            
+            // 添加到蛇數組
+            snake.unshift({ x: head.x, y: head.y, element: newHead });
+            
+            // 檢查是否吃到食物
+            if (head.x === food.x && head.y === food.y) {
+                // 增加分數
+                score++;
+                scoreDisplay.textContent = `得分: ${score}`;
+                
+                // 創建新食物
+                createFood();
+            } else {
+                // 移除尾部
+                const tail = snake.pop();
+                gameBoard.removeChild(tail.element);
+            }
+        }
+        
+        // 遊戲結束
+        function gameOver() {
+            clearInterval(gameInterval);
+            gameOverScreen.style.display = 'flex';
+            gameStarted = false;
+            startBtn.textContent = '開始遊戲';
+        }
+        
+        // 事件監聽器
+        startBtn.addEventListener('click', () => {
+            if (!gameStarted) {
+                initGame();
+                gameInterval = setInterval(moveSnake, 150);
+                gameStarted = true;
+                isPaused = false;
+                startBtn.textContent = '重新開始';
+                pauseBtn.textContent = '暫停';
+            } else {
+                initGame();
+                gameInterval = setInterval(moveSnake, 150);
+                gameStarted = true;
+                isPaused = false;
+                pauseBtn.textContent = '暫停';
+            }
+        });
+        
+        pauseBtn.addEventListener('click', () => {
+            if (!gameStarted) return;
+            
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? '繼續' : '暫停';
+        });
+        
+        restartBtn.addEventListener('click', () => {
+            initGame();
+            gameInterval = setInterval(moveSnake, 150);
+            gameStarted = true;
+            isPaused = false;
+            gameOverScreen.style.display = 'none';
+            pauseBtn.textContent = '暫停';
+        });
+        
+        // 鍵盤控制
+        document.addEventListener('keydown', (e) => {
+            if (!gameStarted || isPaused) return;
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (direction !== 'down') nextDirection = 'up';
+                    break;
+                case 'ArrowDown':
+                    if (direction !== 'up') nextDirection = 'down';
+                    break;
+                case 'ArrowLeft':
+                    if (direction !== 'right') nextDirection = 'left';
+                    break;
+                case 'ArrowRight':
+                    if (direction !== 'left') nextDirection = 'right';
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
